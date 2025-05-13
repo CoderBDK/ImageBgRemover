@@ -25,7 +25,7 @@ object OpenCVUtils  {
         // loadModel(context)
     }
 
-    fun removeImageBackground(inputBitmap: Bitmap): Bitmap {
+    fun removeImageBackground(inputBitmap: Bitmap, iterationCount: Int = 2): Bitmap {
         // Convert Bitmap to Mat
         val mat = Mat()
         Utils.bitmapToMat(inputBitmap, mat)
@@ -36,7 +36,7 @@ object OpenCVUtils  {
         val fgModel = Mat()
         val rect = Rect(10, 10, mat.cols() - 20, mat.rows() - 20)
 
-        Imgproc.grabCut(mat, mask, rect, bgModel, fgModel, 2, Imgproc.GC_INIT_WITH_RECT)
+        Imgproc.grabCut(mat, mask, rect, bgModel, fgModel, iterationCount, Imgproc.GC_INIT_WITH_RECT)
 
         val resultMask = Mat()
         Core.compare(mask, Scalar(Imgproc.GC_PR_FGD.toDouble()), resultMask, Core.CMP_EQ)

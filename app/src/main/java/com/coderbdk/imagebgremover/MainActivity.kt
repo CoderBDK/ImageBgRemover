@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,8 +27,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -37,11 +42,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -98,7 +105,25 @@ fun MainContent(name: String, modifier: Modifier = Modifier) {
     var outputBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
     var revealFraction by remember { mutableFloatStateOf(0f) }
+    var iterationCount by remember { mutableIntStateOf(2) }
     val coroutine = rememberCoroutineScope()
+
+    val removeBackground: () -> Unit = {
+        inputBitmap?.let {
+            coroutine.launch {
+                outputBitmap = null
+                loading = true
+                outputBitmap = withContext(Dispatchers.Default) {
+                    OpenCVUtils.removeImageBackground(it, iterationCount)
+                }
+                loading = false
+
+                revealFraction = 0f
+                delay(100)
+                revealFraction = 1f
+            }
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -107,27 +132,15 @@ fun MainContent(name: String, modifier: Modifier = Modifier) {
             val stream = context.contentResolver.openInputStream(it)
 
             stream?.use {
-                val bitmap = BitmapFactory.decodeStream(stream).scale(300,300)
+                val bitmap = BitmapFactory.decodeStream(stream).scale(300, 300)
                 inputBitmap = bitmap
                 outputBitmap?.recycle()
-                outputBitmap = null
             }
-
-            inputBitmap?.let {
-                coroutine.launch {
-                    loading = true
-                    outputBitmap = withContext(Dispatchers.Default) {
-                        OpenCVUtils.removeImageBackground(it)
-                    }
-                    loading = false
-
-                    revealFraction = 0f
-                    delay(100)
-                    revealFraction = 1f
-                }
-            }
+            removeBackground()
         }
     }
+
+
 
     if (loading) {
         Dialog(onDismissRequest = {}) {
@@ -150,6 +163,7 @@ fun MainContent(name: String, modifier: Modifier = Modifier) {
             .padding(8.dp)
     ) {
         ToolMenu(
+            inputBitmap = inputBitmap,
             outputBitmap = outputBitmap,
             revealFraction = revealFraction,
             onPickImageClick = {
@@ -157,7 +171,26 @@ fun MainContent(name: String, modifier: Modifier = Modifier) {
             },
             onRevealFractionToggle = {
                 revealFraction = it
+            },
+            onRemove = {
+                removeBackground()
             })
+
+        Text("Iteration Count")
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("$iterationCount")
+            Spacer(Modifier.width(8.dp))
+            Slider(
+                value = iterationCount.toFloat(),
+                onValueChange = {
+                    iterationCount = it.toInt()
+                },
+                valueRange = (1f..10f)
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -224,10 +257,12 @@ fun MainContent(name: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun ToolMenu(
+    inputBitmap: Bitmap?,
     outputBitmap: Bitmap?,
     revealFraction: Float,
     onPickImageClick: () -> Unit,
     onRevealFractionToggle: (Float) -> Unit,
+    onRemove: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -260,6 +295,16 @@ fun ToolMenu(
                 )
             }
         }
+        if (inputBitmap != null) {
+            IconButton(
+                onClick = onRemove,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RemoveCircleOutline,
+                    contentDescription = "remove"
+                )
+            }
+        }
     }
 }
 
@@ -268,10 +313,12 @@ fun ToolMenu(
 fun MainPreview() {
     ImageBgRemoverTheme {
         ToolMenu(
+            inputBitmap = createBitmap(20, 20),
             outputBitmap = createBitmap(20, 20),
             revealFraction = 0f,
             onPickImageClick = {},
-            onRevealFractionToggle = {}
+            onRevealFractionToggle = {},
+            onRemove = {}
         )
     }
 }
